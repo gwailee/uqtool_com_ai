@@ -24,6 +24,7 @@ markets = [
     {'prefix': 'fund', 'allow_short': False},  # 基金市场
     {'prefix': 'cnoption', 'allow_short': True, 'leverage': 10},  # 期权市场
 ]
+
 4. API 参数说明
 参数名	必填	说明
 api_key	是	用户的API密钥，用于认证和权限控制。
@@ -32,18 +33,21 @@ ts_code	是	合约代码（如 XAUUSD.fxcm, EURUSD.fxcm, 000001.SH 等）。
 start_date	否	查询的开始日期（格式：YYYY-MM-DD），仅对 market 表查询有效。
 end_date	否	查询的结束日期（格式：YYYY-MM-DD），仅对 market 表查询有效。
 table_type	是	查询的表类型，可选值为 market 或 basic。
-5. HTTP 请求示例
+
+6. HTTP 请求示例
 查询人气指数数据
 GET 'https://www.uqtool.com/wp-json/swtool/v1/visitors-data/?days=7&time_unit=day&api_key=YOUR_API_KEY'
 AI实时预测数据
-
 POST 'https://www.uqtool.com/wp-json/swtool/v1/predict/' \
 -H 'Content-Type: application/json' \
 -H 'X-API-KEY: YOUR_API_KEY' \
 -d '{"market":"cnstock","code":"000001.SZ","price":"10.50","allow_short":0}'
+
 查询market表数据
 GET https://www.uqtool.com/wp-json/swtool/v1/query/?api_key=YOUR_API_KEY&market=gold&ts_code=XAUUSD.fxcm&start_date=2023-01-01&end_date=2023-12-31&table_type=market
+
 查询basic表数据
 GET https://www.uqtool.com/wp-json/swtool/v1/query/?api_key=YOUR_API_KEY&market=gold&ts_code=XAUUSD.fxcm&table_type=basic
+
 测试工具
 https://www.uqtool.com/test_tool
