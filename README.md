@@ -2,9 +2,9 @@
 
 ## 概述
 swtool(UQTOOL.COM AI) 是一款基于人工智能的量化交易策略工具，将交易行为转化为仓位控制过程。它通过AI预测合约的合理仓位，根据仓位变动实现建仓、加仓、减仓、反手等操作，为用户提供24小时智能分析与策略建议。
-联系作者：
-QQ：395508196
-Email:395508196@qq.com
+- 联系作者：
+- QQ：395508196
+- Email:395508196@qq.com
 
 ## 主要功能
 ### 1. 仓位预测
@@ -14,13 +14,11 @@ Email:395508196@qq.com
   - 股票：建议收盘前30分钟预测
   - 期货/期权：可实时预测
 - **有效性检查**：验证最近一次预测准确性，再决定是否跟单。
-### 参考脚本：
-ai_real_time_prediction.py
+- 参考脚本：ai_real_time_prediction.py
 
 ### 2. 人气指数
 - 反映市场情绪：人气飙升可能预示暴涨暴跌，人气低迷则行情震荡。
-### 参考脚本：
-get_popularity_index.py
+- 参考脚本：get_popularity_index.py
 
 ### 3. 跟单交易与风控
 - 在合约页面查看“持仓信息”，按建议仓位调整持仓。
@@ -51,10 +49,8 @@ get_popularity_index.py
 ### 8. 自动化交易（高级）
 - 提供源码与API指南，支持自行部署自动化交易系统。
 ### 参考脚本：
-- A股自动交易
-auto_trade_chinese_A_stock.py
-- 全市场自动交易
-auto_trade_all_markets.py
+- A股自动交易：auto_trade_chinese_A_stock.py
+- 全市场自动交易：auto_trade_all_markets.py
 
 ### 9. 订阅策略指标
 - 通过API接入策略数据，可用于行情软件集成或产品开发。
