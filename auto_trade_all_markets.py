@@ -31,16 +31,16 @@ class MarketType(Enum):
     OPTION = "cnoption"     # 期权（可以做空）
     GOLD = "gold"           # 贵金属（可以做空）
     INDEX = "cnindex"       # 指数（不能做空）
-    BOND="cbond"            #可转债（不能做空）
-    FUND="fund"             #基金（不能做空）
-
+    BOND = "cbond"          # 可转债（不能做空）
+    FUND = "fund"           # 基金（不能做空）
 
 
 class SymbolInfo:
     """交易品种信息"""
     
     def __init__(self, symbol: str, market_type: MarketType, name: str = "", 
-                 allow_short: bool = False, leverage: int = 1):
+                 allow_short: bool = False, leverage: int = 1,
+                 per_symbol_capital: float = None):
         """
         初始化交易品种
         
@@ -50,12 +50,14 @@ class SymbolInfo:
             name: 品种名称
             allow_short: 是否允许做空
             leverage: 杠杆倍数（期货、外汇等）
+            per_symbol_capital: 分配给该合约的资金（元）
         """
         self.symbol = symbol
         self.market_type = market_type
         self.name = name
         self.allow_short = allow_short
         self.leverage = leverage
+        self.per_symbol_capital = per_symbol_capital
         
     def __str__(self):
         return f"{self.symbol} ({self.name}) - {self.market_type.value}"
@@ -64,21 +66,32 @@ class SymbolInfo:
 class MultiMarketTrader:
     """多市场交易策略"""
     
-    def __init__(self, api_key: str, symbols: List[SymbolInfo], account_value: float = 1000000.0):
+    def __init__(self, api_key: str, symbols: List[SymbolInfo], 
+                 per_symbol_capital: float = 100000.0):
         """
         初始化多市场交易策略
         
         Args:
             api_key: UQTool API密钥
             symbols: 交易品种列表
-            account_value: 账户总资产（元）
+            per_symbol_capital: 每个合约分配的初始资金（元）
         """
         self.api_key = api_key
         self.symbols = symbols
-        self.account_value = account_value
+        self.per_symbol_capital = per_symbol_capital
+        
+        # 计算总资产：每个合约资金 × 合约数量
+        self.total_account_value = per_symbol_capital * len(symbols)
+        
+        # 为每个SymbolInfo设置资金（如果未设置）
+        for symbol in self.symbols:
+            if symbol.per_symbol_capital is None:
+                symbol.per_symbol_capital = per_symbol_capital
+        
         self.base_url = "https://www.uqtool.com/wp-json/swtool/v1"
         
-        # 记录当前持仓 {symbol: {'target_position': -1~1, 'current_shares': int, 'position_type': 'long'/'short'}}
+        # 记录当前持仓 {symbol: {'target_position': -1~1, 'current_units': int, 
+        # 'position_type': 'long'/'short', 'allocated_capital': float}}
         self.positions: Dict[str, Dict] = {}
         
         # 市场配置
@@ -86,12 +99,15 @@ class MultiMarketTrader:
         
         logger.info("=" * 70)
         logger.info("UQTool 多市场交易策略启动")
-        logger.info(f"账户总资产: {account_value:.2f}元")
+        logger.info(f"总资产: {self.total_account_value:.2f}元")
+        logger.info(f"每个合约资金: {per_symbol_capital:.2f}元")
         logger.info(f"交易品种 ({len(symbols)}个):")
         for symbol in symbols:
             leverage_info = f" 杠杆{symbol.leverage}X" if symbol.leverage > 1 else ""
             short_info = "可多空" if symbol.allow_short else "仅做多"
-            logger.info(f"  {symbol.symbol}: {symbol.name} - {symbol.market_type.value} ({short_info}{leverage_info})")
+            capital_info = f" 资金:{symbol.per_symbol_capital:.0f}元"
+            logger.info(f"  {symbol.symbol}: {symbol.name} - {symbol.market_type.value} "
+                       f"({short_info}{leverage_info}{capital_info})")
         logger.info("=" * 70)
         
         # 第一步：测试所有API接口
@@ -366,9 +382,8 @@ class MultiMarketTrader:
             '123118.SZ': "1396.25|1288|1414|1269.75|220403|302360",
             # 基金
             '510300.SH': "34.50|34.60|34.40|34.55|100000|34550000",
-            #期权
+            # 期权
             'MO2512-C-5800.CFX': "1535|1502.8|1544.6|1502.8|44|671.886",
-
         }
         
         return price_examples.get(symbol_info.symbol, "0|0|0|0|0|0")
@@ -498,20 +513,18 @@ class MultiMarketTrader:
                 '000001.SZ': 11.62,            
                 # 期货
                 'ICL1.CFX': 7083.2,
-                #指数
+                # 指数
                 '000001.SH': 3455.0,
                 # 外汇
                 'EURUSD.fxcm': 1.1055,
                 # 贵金属
                 'AG(T+D)': 15.463,
-                #可转债
+                # 可转债
                 '123118.SZ': 1288.0,
                 # 基金
                 '510300.SH': 34.55,
                 # 期权
                 'MO2512-C-5800.CFX': 1535.0,
-
-
             }
             
             return default_prices.get(symbol_info.symbol, 10.0)
@@ -569,8 +582,11 @@ class MultiMarketTrader:
         market_cfg = self.market_config.get(symbol_info.market_type.value, {})
         min_lots = market_cfg.get('min_lots', 1)
         
+        # 使用分配给该合约的资金（不是总资产）
+        allocated_capital = symbol_info.per_symbol_capital
+        
         # 考虑杠杆
-        effective_capital = self.account_value * symbol_info.leverage
+        effective_capital = allocated_capital * symbol_info.leverage
         
         # 计算目标市值（注意：空头仓位用负值计算）
         target_value = effective_capital * target_position
@@ -582,6 +598,7 @@ class MultiMarketTrader:
             target_units = -int(abs(target_value) / current_price / min_lots) * min_lots
         
         logger.debug(f"计算目标单位 {symbol_info.symbol}: "
+                    f"分配资金={allocated_capital:.2f}, "
                     f"价格={current_price:.4f}, "
                     f"目标仓位={target_position:.3f}, "
                     f"目标市值={target_value:.2f}, "
@@ -642,11 +659,13 @@ class MultiMarketTrader:
         current_pos = self.positions.get(symbol_key, {
             'target_position': 0.0,
             'current_units': 0,
-            'position_type': 'flat'
+            'position_type': 'flat',
+            'allocated_capital': symbol_info.per_symbol_capital
         })
         
         old_position = current_pos['target_position']
         old_units = current_pos['current_units']
+        allocated_capital = current_pos['allocated_capital']
         
         # 判断调整动作
         action = self.get_position_action(old_position, target_position, symbol_info.allow_short)
@@ -677,7 +696,7 @@ class MultiMarketTrader:
             trade_value = abs(units_to_trade) * current_price / symbol_info.leverage
             
             logger.info(f"{symbol_info.symbol}: {action} {trade_direction}{abs(units_to_trade)}单位 "
-                      f"@ {current_price:.4f}, 占用资金={trade_value:.2f}")
+                      f"@ {current_price:.4f}, 占用资金={trade_value:.2f}元")
         
         # 更新持仓记录
         position_type = 'long' if target_position > 0 else ('short' if target_position < 0 else 'flat')
@@ -686,10 +705,12 @@ class MultiMarketTrader:
             'target_position': target_position,
             'current_units': target_units,
             'position_type': position_type,
+            'allocated_capital': allocated_capital,
             'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'reason': reason,
             'market_type': symbol_info.market_type.value,
-            'symbol_name': symbol_info.name
+            'symbol_name': symbol_info.name,
+            'leverage': symbol_info.leverage
         }
         
         direction_old = "多头" if old_position > 0 else ("空头" if old_position < 0 else "空仓")
@@ -697,7 +718,8 @@ class MultiMarketTrader:
         
         logger.info(f"{symbol_info.symbol}: {action}完成 "
                    f"({direction_old}{abs(old_position)*100:.1f}%->{direction_new}{abs(target_position)*100:.1f}%), "
-                   f"单位: {old_units}->{target_units}")
+                   f"单位: {old_units}->{target_units}, "
+                   f"分配资金: {allocated_capital:.2f}元")
     
     def startup_sync(self):
         """启动时同步仓位"""
@@ -761,6 +783,7 @@ class MultiMarketTrader:
         total_position_value = 0
         long_value = 0
         short_value = 0
+        total_allocated_capital = 0
         
         for symbol_key, pos_info in self.positions.items():
             target_position = pos_info['target_position']
@@ -768,6 +791,10 @@ class MultiMarketTrader:
             position_type = pos_info.get('position_type', 'flat')
             market_type = pos_info.get('market_type', 'unknown')
             symbol_name = pos_info.get('symbol_name', symbol_key)
+            allocated_capital = pos_info.get('allocated_capital', 0)
+            leverage = pos_info.get('leverage', 1)
+            
+            total_allocated_capital += allocated_capital
             
             # 找到对应的symbol_info
             symbol_info = next((s for s in self.symbols if s.symbol == symbol_key), None)
@@ -777,44 +804,54 @@ class MultiMarketTrader:
                 current_price = self.get_current_price(symbol_info) or 0
                 
                 if position_type == 'long':
-                    position_value = abs(current_units) * current_price / symbol_info.leverage
+                    position_value = abs(current_units) * current_price / leverage
                     long_value += position_value
                 elif position_type == 'short':
-                    position_value = -abs(current_units) * current_price / symbol_info.leverage
+                    position_value = -abs(current_units) * current_price / leverage
                     short_value += position_value
                 else:
                     position_value = 0
                 
                 total_position_value += position_value
                 
-                # 计算实际仓位比例
-                actual_position = position_value / self.account_value if self.account_value > 0 else 0
+                # 计算实际仓位比例（相对于该合约分配的资金）
+                position_ratio = position_value / allocated_capital if allocated_capital > 0 else 0
                 
                 direction = "多头" if target_position > 0 else ("空头" if target_position < 0 else "空仓")
                 
                 logger.info(f"{symbol_key} ({symbol_name} - {market_type}):")
                 logger.info(f"  目标仓位: {target_position:.3f} ({direction}{abs(target_position)*100:.1f}%)")
-                logger.info(f"  实际仓位: {actual_position:.3f} ({actual_position*100:.1f}%)")
+                logger.info(f"  实际仓位: {position_ratio:.3f} ({position_ratio*100:.1f}%)")
                 logger.info(f"  持仓方向: {position_type}")
                 logger.info(f"  持仓单位: {current_units}")
                 logger.info(f"  当前价格: {current_price:.4f}")
-                logger.info(f"  持仓市值: {position_value:.2f}")
-                if symbol_info.leverage > 1:
-                    logger.info(f"  杠杆倍数: {symbol_info.leverage}X")
+                logger.info(f"  持仓市值: {position_value:.2f}元")
+                logger.info(f"  分配资金: {allocated_capital:.2f}元")
+                if leverage > 1:
+                    logger.info(f"  杠杆倍数: {leverage}X")
                 logger.info("")
         
-        logger.info(f"多头总市值: {long_value:.2f}")
-        logger.info(f"空头总市值: {short_value:.2f}")
-        logger.info(f"净持仓市值: {total_position_value:.2f}")
-        logger.info(f"账户总资产: {self.account_value:.2f}")
-        logger.info(f"总仓位比例: {total_position_value/self.account_value:.3f} "
-                   f"({total_position_value/self.account_value*100:.1f}%)")
+        logger.info(f"多头总市值: {long_value:.2f}元")
+        logger.info(f"空头总市值: {short_value:.2f}元")
+        logger.info(f"净持仓市值: {total_position_value:.2f}元")
+        logger.info(f"分配总资金: {total_allocated_capital:.2f}元")
+        logger.info(f"账户总资产: {self.total_account_value:.2f}元")
         
-        # 计算风险指标
-        gross_exposure = (long_value + abs(short_value)) / self.account_value
-        net_exposure = total_position_value / self.account_value
+        # 计算相对于总资产的仓位比例
+        if self.total_account_value > 0:
+            total_position_ratio = total_position_value / self.total_account_value
+            logger.info(f"总仓位比例: {total_position_ratio:.3f} ({total_position_ratio*100:.1f}%)")
+        
+        # 计算风险指标（相对于总资产）
+        gross_exposure = (long_value + abs(short_value)) / self.total_account_value
+        net_exposure = total_position_value / self.total_account_value
         logger.info(f"总风险敞口: {gross_exposure:.3f} ({gross_exposure*100:.1f}%)")
         logger.info(f"净风险敞口: {net_exposure:.3f} ({net_exposure*100:.1f}%)")
+        
+        # 计算资金利用率
+        if total_allocated_capital > 0:
+            capital_utilization = (long_value + abs(short_value)) / total_allocated_capital
+            logger.info(f"资金利用率: {capital_utilization:.3f} ({capital_utilization*100:.1f}%)")
         
         logger.info("-" * 80)
     
@@ -936,35 +973,40 @@ if __name__ == "__main__":
     
     # 定义交易品种（多市场示例）
     SYMBOLS = [
-        # A股股票（不能做空）
-        SymbolInfo('000001.SZ', MarketType.STOCK, '平安银行', allow_short=False),        
-        # 期货（可以做空）
-        SymbolInfo('ICL1.CFX', MarketType.FUTURES, '中证500主力', allow_short=True, leverage=1),        
-        # 可转债（不可以做空）
-        SymbolInfo('123118.SZ', MarketType.BOND, '123118', allow_short=False, leverage=1),
-        # 基金（不可以做空）
-        SymbolInfo('510300.SH', MarketType.FUND, '510300', allow_short=False, leverage=1),
-        # 期权（可以做空）
-        SymbolInfo('MO2512-C-5800.CFX', MarketType.OPTION, '202512C5800', allow_short=True, leverage=1),
-        #指数
-        SymbolInfo('000001.SH', MarketType.INDEX, '上证指数', allow_short=False, leverage=1),
-        # 外汇（可以做空）
-        #SymbolInfo('EURUSD.fxcm', MarketType.FOREX, '欧元美元', allow_short=True, leverage=1),
-        # 贵金属（可以做空）
-        #SymbolInfo('Ag(T+D)', MarketType.GOLD, 'Ag(T+D)', allow_short=True, leverage=1),
-
-
+        # A股股票（不能做空）- 每个分配20万
+        SymbolInfo('000001.SZ', MarketType.STOCK, '平安银行', allow_short=False, 
+                  per_symbol_capital=200000.0),
+        
+        # 期货（可以做空）- 每个分配30万
+        SymbolInfo('ICL1.CFX', MarketType.FUTURES, '中证500主力', allow_short=True, 
+                  leverage=1, per_symbol_capital=300000.0),
+        
+        # 可转债（不可以做空）- 每个分配15万
+        SymbolInfo('123118.SZ', MarketType.BOND, '123118', allow_short=False, 
+                  per_symbol_capital=150000.0),
+        
+        # 基金（不可以做空）- 每个分配25万
+        SymbolInfo('510300.SH', MarketType.FUND, '510300', allow_short=False, 
+                  per_symbol_capital=250000.0),
+        
+        # 期权（可以做空）- 每个分配10万
+        SymbolInfo('MO2512-C-5800.CFX', MarketType.OPTION, '202512C5800', 
+                  allow_short=True, leverage=1, per_symbol_capital=100000.0),
+        
+        # 指数（不能做空）- 每个分配20万
+        SymbolInfo('000001.SH', MarketType.INDEX, '上证指数', allow_short=False, 
+                  per_symbol_capital=200000.0),
     ]
     
-    # 账户总资产（元）
-    ACCOUNT_VALUE = 1000000.0
+    # 计算默认每个合约资金（如果不指定）
+    DEFAULT_PER_SYMBOL_CAPITAL = 200000.0  # 20万元/合约
     
     try:
         # 创建并运行交易策略
         trader = MultiMarketTrader(
             api_key=API_KEY,
             symbols=SYMBOLS,
-            account_value=ACCOUNT_VALUE
+            per_symbol_capital=DEFAULT_PER_SYMBOL_CAPITAL
         )
         
         # 如果API测试通过，才运行主循环
