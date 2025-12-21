@@ -415,7 +415,7 @@ class PositionSyncTrader:
         实际应该从行情API获取
         """
         try:
-            # 尝试从历史数据获取最新收盘价
+            # 尝试从历史数据获取最新收盘价；注意历史价格在实盘的时候，会延迟一天
             history_data = self.get_history_position_data(symbol)
             if history_data and 'close' in history_data:
                 return float(history_data['close'])
