@@ -67,7 +67,8 @@ class MultiMarketTrader:
     """多市场交易策略"""
     
     def __init__(self, api_key: str, symbols: List[SymbolInfo], 
-                 per_symbol_capital: float = 100000.0):
+                 per_symbol_capital: float = 100000.0,
+                 host: str = "www.uqtool.com"):
         """
         初始化多市场交易策略
         
@@ -77,6 +78,7 @@ class MultiMarketTrader:
             per_symbol_capital: 每个合约分配的初始资金（元）
         """
         self.api_key = api_key
+        self.host = host
         self.symbols = symbols
         self.per_symbol_capital = per_symbol_capital
         
@@ -88,7 +90,7 @@ class MultiMarketTrader:
             if symbol.per_symbol_capital is None:
                 symbol.per_symbol_capital = per_symbol_capital
         
-        self.base_url = "https://www.uqtool.com/wp-json/swtool/v1"
+        self.base_url = f"https://{self.host}/wp-json/swtool/v1"
         
         # 记录当前持仓 {symbol: {'target_position': -1~1, 'current_units': int, 
         # 'position_type': 'long'/'short', 'allocated_capital': float}}
@@ -968,8 +970,8 @@ class MultiMarketTrader:
 # 使用示例
 if __name__ == "__main__":
     # 配置参数
-    API_KEY = "Gh08TMemRSsLa7jCqI5HucWNZhUwnZG1"  # 替换为你的API密钥
-    
+    API_KEY = "YOU-API_KEY"  # 替换为你的API密钥
+    host="www.uqtool.com"
     # 定义交易品种（多市场示例）
     SYMBOLS = [
         # A股股票（不能做空）- 每个分配20万
@@ -1013,7 +1015,8 @@ if __name__ == "__main__":
         trader = MultiMarketTrader(
             api_key=API_KEY,
             symbols=SYMBOLS,
-            per_symbol_capital=DEFAULT_PER_SYMBOL_CAPITAL
+            per_symbol_capital=DEFAULT_PER_SYMBOL_CAPITAL,
+            host=host
         )
         
         # 如果API测试通过，才运行主循环
