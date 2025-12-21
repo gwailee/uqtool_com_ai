@@ -212,7 +212,7 @@ class MultiMarketTrader:
             history_result = self.test_history_api(test_symbol)
             test_results.append((f"{market}历史接口", history_result))
             
-            time.sleep(1)  # 避免请求过快
+           # time.sleep(0.1)  # 避免请求过快
         
         # 输出测试结果
         logger.info("\n" + "=" * 70)
@@ -304,7 +304,7 @@ class MultiMarketTrader:
                 'ts_code': symbol_info.symbol,
                 'start_date': test_date,
                 'end_date': test_date,
-                'table_type': 'market',
+                'table_type': 'basic', #改成用basic比market类型速度要快
                 'max_items': 10000
             }
             
@@ -454,7 +454,7 @@ class MultiMarketTrader:
                 'ts_code': symbol_info.symbol,
                 'start_date': self.latest_trading_date,
                 'end_date': self.latest_trading_date,
-                'table_type': 'market',
+                'table_type': 'basic',
                 'max_items': 10000
             }
             
@@ -543,7 +543,7 @@ class MultiMarketTrader:
                 'ts_code': symbol_info.symbol,
                 'start_date': self.latest_trading_date,
                 'end_date': self.latest_trading_date,
-                'table_type': 'market',
+                'table_type': 'basic',
                 'max_items': 10000
             }
             
@@ -765,7 +765,7 @@ class MultiMarketTrader:
                 else:
                     logger.warning(f"无法获取 {symbol_info.symbol} 的仓位数据")
                 
-                time.sleep(1)  # 避免请求过快
+               # time.sleep(0.1)  # 避免请求过快
                 
             except Exception as e:
                 logger.error(f"同步 {symbol_info.symbol} 仓位时出错: {e}")
@@ -887,7 +887,7 @@ class MultiMarketTrader:
                 else:
                     logger.warning(f"无法获取 {symbol_info.symbol} 的历史仓位")
                 
-                time.sleep(1)
+               # time.sleep(0.1)
                 
             except Exception as e:
                 logger.error(f"处理 {symbol_info.symbol} 早盘检查时出错: {e}")
@@ -925,7 +925,7 @@ class MultiMarketTrader:
                 else:
                     logger.warning(f"无法获取 {symbol_info.symbol} 的实时预测")
                 
-                time.sleep(1)
+               # time.sleep(0.1)
                 
             except Exception as e:
                 logger.error(f"处理 {symbol_info.symbol} 尾盘检查时出错: {e}")
@@ -955,7 +955,7 @@ class MultiMarketTrader:
         while True:
             try:
                 schedule.run_pending()
-                time.sleep(1)
+               # time.sleep(0.1)
                 
             except KeyboardInterrupt:
                 logger.info("\n收到中断信号，停止运行")
@@ -968,7 +968,7 @@ class MultiMarketTrader:
 # 使用示例
 if __name__ == "__main__":
     # 配置参数
-    API_KEY = "YOUR_API_KEY"  # 替换为你的API密钥
+    API_KEY = "Gh08TMemRSsLa7jCqI5HucWNZhUwnZG1"  # 替换为你的API密钥
     
     # 定义交易品种（多市场示例）
     SYMBOLS = [
