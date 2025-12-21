@@ -51,14 +51,14 @@ get_popularity_index.py
 ### 8. 自动化交易（高级）
 - 提供源码与API指南，支持自行部署自动化交易系统。
 ### 参考脚本：
-1.A股自动交易
+- A股自动交易
 auto_trade_chinese_A_stock.py
-2.全市场自动交易
+- 全市场自动交易
 auto_trade_all_markets.py
 
 ### 9. 订阅策略指标
 - 通过API接入策略数据，可用于行情软件集成或产品开发。
-- 参考脚本：
+### 参考脚本：
   main.py
 
 ## 核心原理：凯利公式
