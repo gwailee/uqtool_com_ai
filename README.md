@@ -49,8 +49,7 @@ UQTOOL.COM AI是一款基于人工智能的量化交易策略工具，将交易�
 ### 8. 自动化交易（高级）
 - 提供源码与API指南，支持自行部署自动化交易系统。
 ### 参考脚本：
-- A股自动交易：auto_trade_chinese_A_stock.py
-- 全市场自动交易：auto_trade_all_markets.py
+auto_trade_all_markets.py
 
 ### 9. 订阅策略指标
 - 通过API接入策略数据，可用于行情软件集成或产品开发。
