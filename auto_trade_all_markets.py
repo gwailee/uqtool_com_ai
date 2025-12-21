@@ -81,7 +81,7 @@ class MultiMarketTrader:
         self.per_symbol_capital = per_symbol_capital
         
         # 计算总资产：每个合约资金 × 合约数量
-        self.total_account_value = per_symbol_capital * len(symbols)
+        self.total_account_value = sum([symbol.per_symbol_capital for symbol in symbols])
         
         # 为每个SymbolInfo设置资金（如果未设置）
         for symbol in self.symbols:
@@ -99,8 +99,7 @@ class MultiMarketTrader:
         
         logger.info("=" * 70)
         logger.info("UQTool 多市场交易策略启动")
-        logger.info(f"总资产: {self.total_account_value:.2f}元")
-        logger.info(f"每个合约资金: {per_symbol_capital:.2f}元")
+        logger.info(f"总资产: {self.total_account_value:.2f}元")      
         logger.info(f"交易品种 ({len(symbols)}个):")
         for symbol in symbols:
             leverage_info = f" 杠杆{symbol.leverage}X" if symbol.leverage > 1 else ""
@@ -977,29 +976,37 @@ if __name__ == "__main__":
         SymbolInfo('000001.SZ', MarketType.STOCK, '平安银行', allow_short=False, 
                   per_symbol_capital=200000.0),
         
-        # 期货（可以做空）- 每个分配30万
+        # 期货（可以做空）- 每个分配10万
         SymbolInfo('ICL1.CFX', MarketType.FUTURES, '中证500主力', allow_short=True, 
-                  leverage=1, per_symbol_capital=300000.0),
+                  leverage=1, per_symbol_capital=100000.0),
         
-        # 可转债（不可以做空）- 每个分配15万
+        # 可转债（不可以做空）- 每个分配10万
         SymbolInfo('123118.SZ', MarketType.BOND, '123118', allow_short=False, 
-                  per_symbol_capital=150000.0),
+                  per_symbol_capital=100000.0),
         
-        # 基金（不可以做空）- 每个分配25万
+        # 基金（不可以做空）- 每个分配20万
         SymbolInfo('510300.SH', MarketType.FUND, '510300', allow_short=False, 
-                  per_symbol_capital=250000.0),
+                  per_symbol_capital=200000.0),
         
         # 期权（可以做空）- 每个分配10万
         SymbolInfo('MO2512-C-5800.CFX', MarketType.OPTION, '202512C5800', 
                   allow_short=True, leverage=1, per_symbol_capital=100000.0),
-        
-        # 指数（不能做空）- 每个分配20万
+        #指数（不可以做空）- 每个分配10万
         SymbolInfo('000001.SH', MarketType.INDEX, '上证指数', allow_short=False, 
-                  per_symbol_capital=200000.0),
+                  per_symbol_capital=100000.0),
+        
+        #外汇（可以做空）- 每个分配10万
+        #SymbolInfo('GBPJPY.FXCM', MarketType.FOREX, '英镑日元', allow_short=True, 
+        #          per_symbol_capital=100000.0),
+
+        #黄金（可以做空）- 每个分配10万
+        #SymbolInfo('Ag(T+D)', MarketType.GOLD, '白银', allow_short=True, 
+        #          per_symbol_capital=100000.0),
+        
     ]
     
     # 计算默认每个合约资金（如果不指定）
-    DEFAULT_PER_SYMBOL_CAPITAL = 200000.0  # 20万元/合约
+    DEFAULT_PER_SYMBOL_CAPITAL = 100000.0  # 10万元/合约
     
     try:
         # 创建并运行交易策略
