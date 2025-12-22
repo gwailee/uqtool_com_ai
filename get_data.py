@@ -169,7 +169,7 @@ if __name__ == "__main__":
         
         # 2. AI实时预测
         print("\n=== AI实时预测 ===")
-        # 使用完整的价格序列（如你提供的CURL示例）
+        # 使用完整的价格序列
         price_sequence = "11.52|11.61|11.61|11.51|742369|857197"
         prediction = client.predict(
             market="cnstock",
