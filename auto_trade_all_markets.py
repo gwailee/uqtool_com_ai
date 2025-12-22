@@ -1083,7 +1083,7 @@ class MultiMarketTrader:
 # 使用示例
 if __name__ == "__main__":
     # 配置参数
-    API_KEY = "YOU-API-KEY"  # 替换为你的API密钥
+    API_KEY = "YOU-API-KEY"  # 替换为你的API密钥，获取地址：https://www.uqtool.com/test_tool
     host="www.uqtool.com"
     # 定义交易品种（多市场示例）
     SYMBOLS = [
