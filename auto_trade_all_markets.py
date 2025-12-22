@@ -90,7 +90,7 @@ class MultiMarketTrader:
             if symbol.per_symbol_capital is None:
                 symbol.per_symbol_capital = per_symbol_capital
         
-        self.base_url = f"https://{self.host}/wp-json/swtool/v1"
+        self.base_url =f"https://{self.host}/wp-json/swtool/v1"
         
         # 记录当前持仓 {symbol: {'target_position': -1~1, 'current_units': int, 
         # 'position_type': 'long'/'short', 'allocated_capital': float}}
@@ -317,35 +317,75 @@ class MultiMarketTrader:
             elapsed_time = time.time() - start_time
             
             response.raise_for_status()
-            data = response.json()
+            result = response.json()
             
-            if isinstance(data, list):
-                if len(data) > 0:
-                    first_record = data[0]
-                    trade_date = first_record.get('trade_date', '未知')
-                    position = first_record.get('position', '未知')
-                    
-                    # 判断仓位方向
-                    if position != '未知':
-                        position_float = float(position)
-                        direction = "多头" if position_float > 0 else ("空头" if position_float < 0 else "空仓")
-                        position_str = f"{position_float:.3f} ({direction})"
-                    else:
-                        position_str = "未知"
-                    
-                    message = (f"获取到 {len(data)} 条数据，日期: {trade_date}, "
-                              f"仓位: {position_str}, 响应时间: {elapsed_time:.2f}秒")
-                    return True, message
-                else:
-                    return True, f"获取到0条数据（可能当天无交易），响应时间: {elapsed_time:.2f}秒"
-            else:
-                return False, f"返回数据格式错误: {type(data)}"
+            # 新的响应格式：返回的是字典，包含 data 和 meta
+            if isinstance(result, dict) and result.get('success'):
+                data = result.get('data', [])
+                meta = result.get('meta', {})
+                api_info = meta.get('api_info', {})
                 
+                # 提取API使用信息
+                remaining = api_info.get('remaining', 0)
+                used_today = api_info.get('used_today', 0)
+                daily_limit = api_info.get('daily_limit', 0)
+                payment_type = api_info.get('payment_type', 'free')
+                
+                if isinstance(data, list):
+                    if len(data) > 0:
+                        first_record = data[0]
+                        trade_date = first_record.get('trade_date', '未知')
+                        position = first_record.get('position', '未知')
+                        
+                        # 判断仓位方向
+                        if position != '未知':
+                            position_float = float(position)
+                            direction = "多头" if position_float > 0 else ("空头" if position_float < 0 else "空仓")
+                            position_str = f"{position_float:.3f} ({direction})"
+                        else:
+                            position_str = "未知"
+                        
+                        message = (f"获取到 {len(data)} 条数据，日期: {trade_date}, "
+                                f"仓位: {position_str}, "
+                                f"API使用: {used_today}/{daily_limit} 剩余: {remaining}, "
+                                f"支付方式: {payment_type}, "
+                                f"响应时间: {elapsed_time:.2f}秒")
+                        return True, message
+                    else:
+                        message = (f"获取到0条数据（可能当天无交易），"
+                                f"API使用: {used_today}/{daily_limit} 剩余: {remaining}, "
+                                f"响应时间: {elapsed_time:.2f}秒")
+                        return True, message
+                else:
+                    return False, f"返回的data字段不是列表格式: {type(data)}"
+            else:
+                # 如果是旧格式（直接返回列表）
+                if isinstance(result, list):
+                    if len(result) > 0:
+                        first_record = result[0]
+                        trade_date = first_record.get('trade_date', '未知')
+                        position = first_record.get('position', '未知')
+                        
+                        if position != '未知':
+                            position_float = float(position)
+                            direction = "多头" if position_float > 0 else ("空头" if position_float < 0 else "空仓")
+                            position_str = f"{position_float:.3f} ({direction})"
+                        else:
+                            position_str = "未知"
+                        
+                        message = (f"获取到 {len(result)} 条数据（旧格式），日期: {trade_date}, "
+                                f"仓位: {position_str}, 响应时间: {elapsed_time:.2f}秒")
+                        return True, message
+                    else:
+                        return True, f"获取到0条数据（可能当天无交易），响应时间: {elapsed_time:.2f}秒"
+                else:
+                    return False, f"返回数据格式错误: {type(result)}, 内容: {str(result)[:100]}"
+                    
         except requests.exceptions.Timeout:
             return False, "请求超时（10秒）"
         except Exception as e:
             return False, f"未知错误: {str(e)}"
-    
+
     def get_latest_trading_date(self) -> str:
         """获取最近交易日（处理周末情况）"""
         today = datetime.now()
@@ -467,36 +507,53 @@ class MultiMarketTrader:
             response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             
-            data = response.json()
+            result = response.json()
             
-            if isinstance(data, list) and len(data) > 0:
-                # 获取最新一条数据
-                latest = data[0] if len(data) == 1 else sorted(data, 
-                    key=lambda x: x.get('trade_date', ''), reverse=True)[0]
+            # 新的响应格式：包含 meta 信息
+            if result.get('success'):
+                data = result.get('data', [])
+                meta = result.get('meta', {})
+                api_info = meta.get('api_info', {})
                 
-                # 注意：历史数据中的position字段可能是字符串
-                position_str = latest.get('position')
-                if position_str is not None:
-                    position = float(position_str)
-                    trade_date = latest.get('trade_date', '未知')
+                # 提取剩余次数信息
+                remaining = api_info.get('remaining', 0)
+                used_today = api_info.get('used_today', 0)
+                daily_limit = api_info.get('daily_limit', 0)
+                payment_type = api_info.get('payment_type', 'free')
+                
+                logger.info(f"API使用信息: 今日已用 {used_today}/{daily_limit}, 剩余 {remaining}, 支付方式: {payment_type}")
+                
+                if isinstance(data, list) and len(data) > 0:
+                    # 获取最新一条数据
+                    latest = data[0] if len(data) == 1 else sorted(data, 
+                        key=lambda x: x.get('trade_date', ''), reverse=True)[0]
                     
-                    direction = "多头" if position > 0 else ("空头" if position < 0 else "空仓")
-                    logger.info(f"历史仓位 {symbol_info.symbol}: 日期={trade_date}, 仓位={position:.3f} ({direction})")
-                    return position
+                    # 注意：历史数据中的position字段可能是字符串
+                    position_str = latest.get('position')
+                    if position_str is not None:
+                        position = float(position_str)
+                        trade_date = latest.get('trade_date', '未知')
+                        
+                        direction = "多头" if position > 0 else ("空头" if position < 0 else "空仓")
+                        logger.info(f"历史仓位 {symbol_info.symbol}: 日期={trade_date}, 仓位={position:.3f} ({direction})")
+                        return position
+                    else:
+                        logger.warning(f"历史数据中未找到position字段 {symbol_info.symbol}")
+                        return None
                 else:
-                    logger.warning(f"历史数据中未找到position字段 {symbol_info.symbol}")
+                    logger.warning(f"无历史数据 {symbol_info.symbol}, 日期: {self.latest_trading_date}")
                     return None
             else:
-                logger.warning(f"无历史数据 {symbol_info.symbol}, 日期: {self.latest_trading_date}")
+                logger.error(f"API返回失败: {result.get('message', '未知错误')}")
                 return None
-                
+                    
         except requests.exceptions.RequestException as e:
             logger.error(f"历史数据网络错误 {symbol_info.symbol}: {e}")
             return None
         except Exception as e:
             logger.error(f"历史数据处理错误 {symbol_info.symbol}: {e}")
             return None
-    
+
     def get_current_price(self, symbol_info: SymbolInfo) -> Optional[float]:
         """
         获取当前价格（简化版）
@@ -970,7 +1027,7 @@ class MultiMarketTrader:
 # 使用示例
 if __name__ == "__main__":
     # 配置参数
-    API_KEY = "YOU-API_KEY"  # 替换为你的API密钥
+    API_KEY = "YOU-API-KEY"  # 替换为你的API密钥
     host="www.uqtool.com"
     # 定义交易品种（多市场示例）
     SYMBOLS = [
