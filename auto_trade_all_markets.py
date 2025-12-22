@@ -81,7 +81,12 @@ class MultiMarketTrader:
         self.host = host
         self.symbols = symbols
         self.per_symbol_capital = per_symbol_capital
-        
+        # 添加积分和API使用信息存储
+        self.current_balance = 0
+        self.current_remaining_calls = 0
+        self.current_payment_type = 'free'
+        self.api_usage_today = 0
+        self.api_daily_limit = 0
         # 计算总资产：每个合约资金 × 合约数量
         self.total_account_value = sum([symbol.per_symbol_capital for symbol in symbols])
         
@@ -241,59 +246,8 @@ class MultiMarketTrader:
         
         return all_passed
     
-    def test_realtime_api(self, symbol_info: SymbolInfo) -> Tuple[bool, str]:
-        """测试实时预测接口"""
-        try:
-            # 获取测试价格数据
-            price_sequence = self.get_price_sequence(symbol_info)
-            
-            url = f"{self.base_url}/predict/"
-            headers = {
-                'Content-Type': 'application/json',
-                'X-API-KEY': self.api_key
-            }
-            
-            data = {
-                'market': symbol_info.market_type.value,
-                'code': symbol_info.symbol,
-                'price': price_sequence,
-                'allow_short': 1 if symbol_info.allow_short else 0
-            }
-            
-            start_time = time.time()
-            response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
-            elapsed_time = time.time() - start_time
-            
-            response.raise_for_status()
-            result = response.json()
-            
-            if result.get('success'):
-                position = result['data'].get('position')
-                remaining = result['data'].get('remaining', '未知')
-                
-                # 判断仓位方向
-                if position is not None:
-                    position_float = float(position)
-                    direction = "多头" if position_float > 0 else ("空头" if position_float < 0 else "空仓")
-                    position_str = f"{position_float:.3f} ({direction})"
-                else:
-                    position_str = "未知"
-                
-                message = (f"返回仓位: {position_str}, 剩余次数: {remaining}, "
-                          f"响应时间: {elapsed_time:.2f}秒")
-                return True, message
-            else:
-                return False, f"API返回失败: {result.get('message', '未知错误')}"
-                
-        except requests.exceptions.Timeout:
-            return False, "请求超时（10秒）"
-        except requests.exceptions.ConnectionError:
-            return False, "网络连接失败"
-        except requests.exceptions.HTTPError as e:
-            return False, f"HTTP错误: {e.response.status_code if e.response else '无响应'}"
-        except Exception as e:
-            return False, f"未知错误: {str(e)}"
-    
+
+    # 修改 test_history_api 函数中的积分信息获取
     def test_history_api(self, symbol_info: SymbolInfo) -> Tuple[bool, str]:
         """测试历史数据接口"""
         try:
@@ -306,7 +260,7 @@ class MultiMarketTrader:
                 'ts_code': symbol_info.symbol,
                 'start_date': test_date,
                 'end_date': test_date,
-                'table_type': 'basic', #改成用basic比market类型速度要快
+                'table_type': 'basic',
                 'max_items': 10000
             }
             
@@ -330,6 +284,11 @@ class MultiMarketTrader:
                 used_today = api_info.get('used_today', 0)
                 daily_limit = api_info.get('daily_limit', 0)
                 payment_type = api_info.get('payment_type', 'free')
+                balance = api_info.get('balance', 0)  # 获取积分信息
+                user_points = api_info.get('user_points', 0)  # 备用字段
+                
+                # 使用 balance 字段，如果为0则尝试 user_points
+                actual_balance = balance if balance > 0 else user_points
                 
                 if isinstance(data, list):
                     if len(data) > 0:
@@ -349,11 +308,14 @@ class MultiMarketTrader:
                                 f"仓位: {position_str}, "
                                 f"API使用: {used_today}/{daily_limit} 剩余: {remaining}, "
                                 f"支付方式: {payment_type}, "
+                                f"剩余积分: {actual_balance}, "
                                 f"响应时间: {elapsed_time:.2f}秒")
                         return True, message
                     else:
                         message = (f"获取到0条数据（可能当天无交易），"
                                 f"API使用: {used_today}/{daily_limit} 剩余: {remaining}, "
+                                f"支付方式: {payment_type}, "
+                                f"剩余积分: {actual_balance}, "
                                 f"响应时间: {elapsed_time:.2f}秒")
                         return True, message
                 else:
@@ -429,6 +391,73 @@ class MultiMarketTrader:
         
         return price_examples.get(symbol_info.symbol, "0|0|0|0|0|0")
     
+    # 修改 test_realtime_api 函数
+    def test_realtime_api(self, symbol_info: SymbolInfo) -> Tuple[bool, str]:
+        """测试实时预测接口"""
+        try:
+            # 获取测试价格数据
+            price_sequence = self.get_price_sequence(symbol_info)
+            
+            url = f"{self.base_url}/predict/"
+            headers = {
+                'Content-Type': 'application/json',
+                'X-API-KEY': self.api_key
+            }
+            
+            data = {
+                'market': symbol_info.market_type.value,
+                'code': symbol_info.symbol,
+                'price': price_sequence,
+                'allow_short': 1 if symbol_info.allow_short else 0
+            }
+            
+            start_time = time.time()
+            response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+            elapsed_time = time.time() - start_time
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get('success'):
+                data = result.get('data', {})
+                position = data.get('position')
+                remaining = data.get('remaining', '未知')
+                balance = data.get('balance', '未知')
+                payment_type = data.get('payment_type', '未知')
+                
+                # 获取API信息
+                api_info = data.get('api_info', {})
+                used_today = api_info.get('used_today', 0)
+                daily_limit = api_info.get('daily_limit', 0)
+                
+                # 判断仓位方向
+                if position is not None:
+                    position_float = float(position)
+                    direction = "多头" if position_float > 0 else ("空头" if position_float < 0 else "空仓")
+                    position_str = f"{position_float:.3f} ({direction})"
+                else:
+                    position_str = "未知"
+                
+                message = (f"返回仓位: {position_str}, "
+                        f"剩余次数: {remaining}, "
+                        f"剩余积分: {balance}, "
+                        f"支付方式: {payment_type}, "
+                        f"API使用: {used_today}/{daily_limit}, "
+                        f"响应时间: {elapsed_time:.2f}秒")
+                return True, message
+            else:
+                return False, f"API返回失败: {result.get('message', '未知错误')}"
+                
+        except requests.exceptions.Timeout:
+            return False, "请求超时（10秒）"
+        except requests.exceptions.ConnectionError:
+            return False, "网络连接失败"
+        except requests.exceptions.HTTPError as e:
+            return False, f"HTTP错误: {e.response.status_code if e.response else '无响应'}"
+        except Exception as e:
+            return False, f"未知错误: {str(e)}"
+
+    # 修改 get_realtime_position 函数中的积分信息获取
     def get_realtime_position(self, symbol_info: SymbolInfo) -> Optional[float]:
         """
         获取实时预测仓位（-1~1）
@@ -461,13 +490,31 @@ class MultiMarketTrader:
             result = response.json()
             
             if result.get('success'):
-                position = float(result['data']['position'])
+                data = result.get('data', {})
+                position = float(data.get('position', 0))
+                
+                # 提取积分和使用信息
+                balance = data.get('balance', 0)
+                remaining = data.get('remaining', 0)
+                payment_type = data.get('payment_type', 'free')
+                api_info = data.get('api_info', {})
                 
                 # 注意：API返回的是-1~1的仓位比例
                 # 例如：0.8 表示多头80%仓位，-0.8 表示空头80%仓位
                 
                 direction = "多头" if position > 0 else ("空头" if position < 0 else "空仓")
-                logger.info(f"实时预测 {symbol_info.symbol}: 仓位={position:.3f} ({direction}{abs(position)*100:.1f}%)")
+                
+                # 记录积分信息
+                logger.info(f"实时预测 {symbol_info.symbol}: "
+                            f"仓位={position:.3f} ({direction}{abs(position)*100:.1f}%), "
+                            f"剩余积分={balance}, "
+                            f"剩余次数={remaining}, "
+                            f"支付方式={payment_type}")
+                
+                # 存储当前积分和剩余次数到实例变量
+                self.current_balance = balance
+                self.current_remaining_calls = remaining
+                
                 return position
             else:
                 logger.error(f"实时预测失败 {symbol_info.symbol}: {result.get('message', '未知错误')}")
@@ -479,7 +526,7 @@ class MultiMarketTrader:
         except Exception as e:
             logger.error(f"实时预测未知错误 {symbol_info.symbol}: {e}")
             return None
-    
+
     def get_history_position(self, symbol_info: SymbolInfo) -> Optional[float]:
         """
         获取历史仓位（-1~1）
@@ -564,7 +611,16 @@ class MultiMarketTrader:
             history_data = self.get_history_position_data(symbol_info)
             if history_data and 'close' in history_data:
                 return float(history_data['close'])
-            
+            #也可以从tushare.org获取部分的实时行情数据，参考下面的实现
+            '''    
+            cnstock: df = pro.rt_k(ts_code='600000.SH,000001.SZ')
+            fund: df = pro.rt_etf_k(ts_code='5*.SH', topic='HQ_FND_TICK')
+            cnindex: df = pro.rt_idx_k(ts_code='000001.SH,399107.SZ')
+            futures:            
+            pro = ts.pro_api()
+            #单个期货合约实时分钟线
+            df = pro.df = pro.rt_fut_min(ts_code='CU2501.SHF', freq='1MIN')
+            '''
             # 备选方案：使用示例价格
             default_prices = {
                 # 股票
