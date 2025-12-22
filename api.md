@@ -1,7 +1,7 @@
 # UQTOOL.COM AI API 文档
 
 ## 概述
-- **API地址**：`https://www.uqtool.com/wp-json/swtool/v1/query/`
+- **API地址**：`https://www.uqtool.com/wp-json/swtool/v1/{查询参数}/`
 - **请求方式**：GET
 - **认证方式**：`api_key` 参数认证
 - **数据格式**：JSON
@@ -59,7 +59,7 @@ X-API-KEY: YOUR_API_KEY
 
 ### 3. 查询market表数据（历史数据）
 ```http
-GET https://www.uqtool.com/wp-json/swtool/v1/query/
+GET https://www.uqtool.com/wp-json/swtool/v1/history/
     ?api_key=YOUR_API_KEY
     &market=gold
     &ts_code=XAUUSD.fxcm
@@ -70,7 +70,7 @@ GET https://www.uqtool.com/wp-json/swtool/v1/query/
 
 ### 4. 查询basic表数据（基础信息）
 ```http
-GET https://www.uqtool.com/wp-json/swtool/v1/query/
+GET https://www.uqtool.com/wp-json/swtool/v1/history/
     ?api_key=YOUR_API_KEY
     &market=gold
     &ts_code=XAUUSD.fxcm
